@@ -6,7 +6,7 @@ on:
   push:
     tags:
       - '*'
-workflow_dispatch: {}
+  workflow_dispatch: {}
 
 # Quyền cần cho GitHub Pages (thay cho việc GitLab tự nhận job tên "pages")
 permissions:
