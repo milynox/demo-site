@@ -1,0 +1,61 @@
+# .github/workflows/pages.yml
+name: Deploy to GitHub Pages
+
+# Chỉ chạy khi push tag — push branch/PR thường sẽ không deploy lại.
+on:
+  push:
+    tags:
+      - '*'
+
+# Quyền cần cho GitHub Pages (thay cho việc GitLab tự nhận job tên "pages")
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Không chạy chồng nhiều lần deploy
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: demo-site/package-lock.json
+
+      - name: Install
+        working-directory: demo-site
+        run: npm ci
+
+      # SPA dùng History API nên asset path phải tuyệt đối; BASE_PATH là sub-path
+      # mà Pages phục vụ repo này (vd. /ten-repo/).
+      - name: Build
+        working-directory: demo-site
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+        run: npm run build
+
+      # Deep-link (/product/SKU-001) reload không bị 404
+      - name: SPA fallback
+        run: cp demo-site/dist/index.html demo-site/dist/404.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: demo-site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
