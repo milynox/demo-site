@@ -1,0 +1,43 @@
+# Only run a pipeline at all when the commit that triggered it carries a tag.
+# Regular branch pushes/MRs will not start a pipeline, so Pages is never
+# republished until you explicitly create a new tag.
+workflow:
+  rules:
+    - if: '$CI_COMMIT_TAG'
+
+stages:
+  - build
+  - deploy
+
+build:
+  stage: build
+  image: node:20-alpine
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - demo-site/node_modules/
+  script:
+    - cd demo-site
+    - npm ci
+    # SPA dùng History API nên asset path phải tuyệt đối; BASE_PATH là sub-path
+    # mà Pages phục vụ project này (vd. /demo-site/). Build cũng copy index.html
+    # -> 404.html để deep-link (/product/SKU-001) reload không bị 404.
+    - BASE_PATH="/${CI_PROJECT_NAME}/" npm run build
+  artifacts:
+    paths:
+      - demo-site/dist
+    expire_in: 1 hour
+
+# Job must be named exactly "pages" for GitLab to publish the "public/"
+# artifact directory as the Pages site.
+pages:
+  stage: deploy
+  image: alpine:3.20
+  needs:
+    - build
+  script:
+    - rm -rf public
+    - mv demo-site/dist public
+  artifacts:
+    paths:
+      - public
